@@ -19,7 +19,12 @@ const Profile: React.FC = () => {
 
         // If not in ID token, fetch from API
         console.log('No orders in ID token, fetching from API...');
-        const token = await getAccessTokenSilently();
+        const token = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: 'https://pizza42-api',
+            scope: 'place:orders',
+          },
+        });
         const response = await fetch(`${apiConfig.baseURL}/orders`, {
           headers: {
             Authorization: `Bearer ${token}`,
