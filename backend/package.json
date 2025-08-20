@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server-simple.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,9 +17,11 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "express-jwt": "^8.5.1",
     "express-oauth-server": "^2.0.0",
     "jsonwebtoken": "^9.0.2",
-    "jwks-client": "^2.0.5"
+    "jwks-client": "^2.0.5",
+    "jwks-rsa": "^3.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

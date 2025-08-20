@@ -6,7 +6,10 @@ import Profile from './Profile';
 import PizzaOrder from './PizzaOrder';
 
 const MainApp: React.FC = () => {
-  const { isAuthenticated, isLoading, user } = useAuth0();
+  const { isAuthenticated, isLoading, user, error } = useAuth0();
+  
+  // Debug logging
+  console.log('Auth0 State:', { isAuthenticated, isLoading, user: user?.email, error });
 
   if (isLoading) {
     return <div>Loading...</div>;

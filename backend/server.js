@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { auth, requiredScopes } = require('express-oauth-server');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-client');
 const { ManagementClient } = require('auth0');

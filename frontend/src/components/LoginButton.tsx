@@ -5,10 +5,13 @@ const LoginButton: React.FC = () => {
   const { loginWithRedirect } = useAuth0();
 
   const handleLogin = () => {
+    console.log('Login button clicked, calling loginWithRedirect');
+    console.log('Auth0 config:', { domain: process.env.REACT_APP_AUTH0_DOMAIN, clientId: process.env.REACT_APP_AUTH0_CLIENT_ID });
     loginWithRedirect();
   };
 
   const handleSocialLogin = () => {
+    console.log('Google login button clicked');
     loginWithRedirect({
       authorizationParams: {
         connection: 'google-oauth2',

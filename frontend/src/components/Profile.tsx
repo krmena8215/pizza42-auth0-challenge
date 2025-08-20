@@ -1,24 +1,45 @@
 import React from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { apiConfig } from '../auth0-config';
 
 const Profile: React.FC = () => {
-  const { user, getIdTokenClaims } = useAuth0();
+  const { user, getIdTokenClaims, getAccessTokenSilently } = useAuth0();
   const [orderHistory, setOrderHistory] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    const getTokenClaims = async () => {
+    const fetchOrderHistory = async () => {
       try {
+        // First try to get from ID token claims (if Auth0 Action is configured)
         const claims = await getIdTokenClaims();
         if (claims && claims['https://pizza42.com/order_history']) {
+          console.log('Found orders in ID token:', claims['https://pizza42.com/order_history']);
           setOrderHistory(claims['https://pizza42.com/order_history']);
+          return;
+        }
+
+        // If not in ID token, fetch from API
+        console.log('No orders in ID token, fetching from API...');
+        const token = await getAccessTokenSilently();
+        const response = await fetch(`${apiConfig.baseURL}/orders`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched orders from API:', data.orders);
+          setOrderHistory(data.orders || []);
+        } else {
+          console.error('Failed to fetch orders:', response.status);
         }
       } catch (error) {
-        console.error('Error getting token claims:', error);
+        console.error('Error fetching order history:', error);
       }
     };
 
-    getTokenClaims();
-  }, [getIdTokenClaims]);
+    fetchOrderHistory();
+  }, [getIdTokenClaims, getAccessTokenSilently]);
 
   return (
     <div style={{ marginBottom: '30px' }}>

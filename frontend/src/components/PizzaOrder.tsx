@@ -57,13 +57,18 @@ const PizzaOrder: React.FC = () => {
         body: JSON.stringify(orderData),
       });
 
+      console.log('Response status:', response.status);
+      const responseData = await response.json();
+      console.log('Response data:', responseData);
+
       if (response.ok) {
         setOrderSuccess(true);
         setSelectedPizza('');
         setSelectedSize('');
         setTimeout(() => setOrderSuccess(false), 3000);
       } else {
-        throw new Error('Failed to place order');
+        console.error('Order failed:', responseData);
+        throw new Error(`Failed to place order: ${responseData.error || response.status}`);
       }
     } catch (error) {
       console.error('Error placing order:', error);
