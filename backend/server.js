@@ -28,9 +28,14 @@ const management = new ManagementClient({
 
 // DynamoDB client configuration
 const dynamoClient = new DynamoDBClient({ 
-  region: process.env.AWS_REGION || 'us-east-1'
+  region: process.env.AWS_REGION || 'us-east-1',
+  // Explicitly use EC2 instance profile credentials
+  credentials: undefined // Let SDK auto-discover credentials from instance profile
 });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+
+// Log the region being used for debugging
+console.log('DynamoDB client configured for region:', process.env.AWS_REGION || 'us-east-1');
 const DYNAMODB_TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'Pizza42-Orders';
 
 // ========================================
