@@ -67,17 +67,16 @@ const Profile: React.FC = () => {
     
     const fetchOrdersFromAPI = async () => {
       try {
-        // Get access token for API call
-        const token = await getAccessTokenSilently({
-          authorizationParams: {
-            audience: 'https://pizza42-api',
-            scope: 'place:orders',
-          },
-        });
+        // Get ID token for API call (contains email verification claims)
+        const idTokenClaims = await getIdTokenClaims();
+        if (!idTokenClaims || !idTokenClaims.__raw) {
+          console.error('Unable to get ID token for API call');
+          return;
+        }
         
         const response = await fetch(`${apiConfig.baseURL}/orders`, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${idTokenClaims.__raw}`,
           },
         });
 
