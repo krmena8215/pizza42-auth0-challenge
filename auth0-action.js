@@ -64,43 +64,23 @@ exports.onExecutePostLogin = async (event, api) => {
     api.idToken.setCustomClaim(`${namespace}auth_metadata`, authMetadata);
     
     // ========================================
-    // ORDER HISTORY ENHANCEMENT (Only if verified)
+    // NOTIFICATION FOR UNVERIFIED USERS
     // ========================================
+    // Note: Order history is now stored in DynamoDB, not Auth0 user metadata
     
-    if (emailVerificationStatus.canPlaceOrders) {
-      // Get the user's order history from user_metadata
-      const orderHistory = event.user.user_metadata?.orders || [];
-      
-      // Validate order history integrity
-      const validatedOrders = validateOrderHistory(orderHistory);
-      
-      // Limit to last 10 orders to keep token size reasonable
-      const recentOrders = validatedOrders.slice(-10);
-      
-      // Add order history to ID token
-      if (recentOrders.length > 0) {
-        api.idToken.setCustomClaim(`${namespace}order_history`, recentOrders);
-        
-        // Add customer profile data with marketing insights
-        const customerProfile = generateCustomerProfile(recentOrders, event.user);
-        api.idToken.setCustomClaim(`${namespace}customer_profile`, customerProfile);
-        
-        console.log(`Added ${recentOrders.length} orders to ID token for user: ${event.user.user_id}`);
-      } else {
-        console.log('No order history found for user:', event.user.user_id);
-        // Add empty customer profile for new customers
-        api.idToken.setCustomClaim(`${namespace}customer_profile`, {
-          total_orders: 0,
-          total_spent: 0,
-          customer_since: event.user.created_at
-        });
-      }
-    } else {
-      console.log('Email not verified - skipping order history for user:', event.user.user_id);
+    if (!emailVerificationStatus.canPlaceOrders) {
+      console.log('Email not verified - user cannot place orders:', event.user.user_id);
       // Add notification about email verification requirement
       api.idToken.setCustomClaim(`${namespace}verification_required`, {
-        message: 'Email verification required to access order history',
+        message: 'Email verification required to place orders',
         action: 'verify_email'
+      });
+    } else {
+      console.log('User verified and can place orders:', event.user.user_id);
+      // Add basic customer info (orders will be retrieved from DynamoDB)
+      api.idToken.setCustomClaim(`${namespace}customer_info`, {
+        customer_since: event.user.created_at,
+        data_source: 'dynamodb'
       });
     }
     

@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.876.0",
+    "@aws-sdk/lib-dynamodb": "^3.876.0",
     "auth0": "^4.28.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

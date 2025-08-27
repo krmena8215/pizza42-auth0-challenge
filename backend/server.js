@@ -3,6 +3,8 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-client');
 const { ManagementClient } = require('auth0');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 require('dotenv').config();
 
 const app = express();
@@ -13,13 +15,101 @@ const client = jwksClient({
   jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`
 });
 
-// Auth0 Management API client
+// Auth0 Management API client (still needed for user profile info)
 const management = new ManagementClient({
   domain: process.env.AUTH0_DOMAIN,
   clientId: process.env.AUTH0_M2M_CLIENT_ID,
   clientSecret: process.env.AUTH0_M2M_CLIENT_SECRET,
   scope: 'read:users update:users'
 });
+
+// DynamoDB client configuration
+const dynamoClient = new DynamoDBClient({ 
+  region: process.env.AWS_REGION || 'us-east-1'
+});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const DYNAMODB_TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'Pizza42-Orders';
+
+// ========================================
+// HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Generate customer profile from DynamoDB order data
+ * @param {Array} orders - Array of orders from DynamoDB
+ * @param {Object} user - Auth0 user object
+ * @returns {Object} Customer profile data
+ */
+function generateCustomerProfileFromOrders(orders, user) {
+  try {
+    if (!orders.length) {
+      return {
+        total_orders: 0,
+        total_spent: 0,
+        customer_since: user.iat ? new Date(user.iat * 1000).toISOString() : new Date().toISOString()
+      };
+    }
+    
+    const totalSpent = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+    const favoriteSize = getMostFrequent(orders.map(order => order.size));
+    const favoritePizza = getMostFrequent(orders.map(order => order.pizza));
+    
+    // Calculate average order value and frequency
+    const avgOrderValue = totalSpent / orders.length;
+    const firstOrder = new Date(orders[orders.length - 1].date); // Last in array (oldest)
+    const lastOrder = new Date(orders[0].date); // First in array (newest)
+    const daysBetween = Math.max(1, (lastOrder - firstOrder) / (1000 * 60 * 60 * 24));
+    const orderFrequency = orders.length / daysBetween; // orders per day
+    
+    return {
+      total_orders: orders.length,
+      total_spent: Math.round(totalSpent * 100) / 100, // Round to 2 decimal places
+      average_order_value: Math.round(avgOrderValue * 100) / 100,
+      favorite_size: favoriteSize,
+      favorite_pizza: favoritePizza,
+      customer_since: user.iat ? new Date(user.iat * 1000).toISOString() : new Date().toISOString(),
+      first_order: firstOrder.toISOString(),
+      last_order: lastOrder.toISOString(),
+      order_frequency_per_day: Math.round(orderFrequency * 1000) / 1000,
+      profile_generated_at: new Date().toISOString(),
+      data_source: 'dynamodb'
+    };
+  } catch (error) {
+    console.error('Error generating customer profile from DynamoDB orders:', error);
+    return {
+      total_orders: orders.length || 0,
+      total_spent: 0,
+      customer_since: user.iat ? new Date(user.iat * 1000).toISOString() : new Date().toISOString(),
+      error: 'Profile generation failed',
+      data_source: 'dynamodb'
+    };
+  }
+}
+
+/**
+ * Helper function to find most frequent item in array
+ * @param {Array} arr - Array to analyze
+ * @returns {string|null} Most frequent item
+ */
+function getMostFrequent(arr) {
+  if (!arr.length) return null;
+  
+  const frequency = {};
+  let maxCount = 0;
+  let mostFrequent = null;
+  
+  arr.forEach(item => {
+    if (item) {
+      frequency[item] = (frequency[item] || 0) + 1;
+      if (frequency[item] > maxCount) {
+        maxCount = frequency[item];
+        mostFrequent = item;
+      }
+    }
+  });
+  
+  return mostFrequent;
+}
 
 // Middleware
 app.use(cors());
@@ -263,34 +353,44 @@ app.post('/api/orders', verifyToken, verifyIdTokenClaims, requireEmailVerificati
     }
 
     // Create order object
+    const orderId = `order_${Date.now()}`;
+    const orderDate = date || new Date().toISOString();
+    
     const order = {
-      id: Date.now().toString(),
+      user_id: userId,
+      order_id: orderId,
       pizza,
       size,
       total,
-      date: date || new Date().toISOString(),
-      userId
+      created_at: orderDate,
+      user_email: req.user.email,
+      status: 'confirmed'
     };
 
-    // Get current user profile from Auth0
-    const user = await management.getUser({ id: userId });
-    const currentOrders = user.user_metadata?.orders || [];
+    console.log('Storing order in DynamoDB:', { userId, orderId });
     
-    // Add new order to user's profile
-    const updatedOrders = [...currentOrders, order];
-    
-    await management.updateUser({ id: userId }, {
-      user_metadata: {
-        ...user.user_metadata,
-        orders: updatedOrders
-      }
+    // Store order in DynamoDB
+    const putCommand = new PutCommand({
+      TableName: DYNAMODB_TABLE_NAME,
+      Item: order
     });
+    
+    await docClient.send(putCommand);
+    console.log('Order successfully stored in DynamoDB');
 
     // Include verification info in response for transparency
     const response = {
       success: true, 
       message: 'Order placed successfully',
-      order: order,
+      order: {
+        id: orderId,
+        pizza,
+        size,
+        total,
+        date: orderDate,
+        userId
+      },
+      storage: 'dynamodb',
       verification: {
         id_token_verified: req.idTokenVerification?.verified || false,
         email_verified: req.idTokenVerification?.emailVerified || false,
@@ -308,7 +408,11 @@ app.post('/api/orders', verifyToken, verifyIdTokenClaims, requireEmailVerificati
 
   } catch (error) {
     console.error('Error placing order:', error);
-    res.status(500).json({ error: 'Failed to place order' });
+    res.status(500).json({ 
+      error: 'Failed to place order',
+      details: error.message,
+      storage: 'dynamodb'
+    });
   }
 });
 
@@ -316,13 +420,41 @@ app.get('/api/orders', verifyToken, verifyIdTokenClaims, requireEmailVerificatio
   try {
     const userId = req.user.sub;
     
-    // Get user orders from Auth0 profile
-    const user = await management.getUser({ id: userId });
-    const orders = user.user_metadata?.orders || [];
+    console.log('Fetching orders from DynamoDB for user:', userId);
+    
+    // Query user orders from DynamoDB
+    const queryCommand = new QueryCommand({
+      TableName: DYNAMODB_TABLE_NAME,
+      KeyConditionExpression: 'user_id = :userId',
+      ExpressionAttributeValues: {
+        ':userId': userId
+      },
+      ScanIndexForward: false // Sort by sort key (order_id) in descending order for latest first
+    });
+    
+    const result = await docClient.send(queryCommand);
+    const orders = result.Items || [];
+    
+    console.log(`Retrieved ${orders.length} orders from DynamoDB`);
+    
+    // Transform DynamoDB items to match frontend expected format
+    const formattedOrders = orders.map(item => ({
+      id: item.order_id,
+      pizza: item.pizza,
+      size: item.size,
+      total: item.total,
+      date: item.created_at,
+      userId: item.user_id
+    }));
+    
+    // Generate customer profile from DynamoDB data
+    const customerProfile = generateCustomerProfileFromOrders(formattedOrders, req.user);
     
     // Include verification info in response
     res.json({ 
-      orders,
+      orders: formattedOrders,
+      storage: 'dynamodb',
+      customer_profile: customerProfile,
       verification: {
         id_token_verified: req.idTokenVerification?.verified || false,
         email_verified: req.idTokenVerification?.emailVerified || false,
@@ -333,8 +465,12 @@ app.get('/api/orders', verifyToken, verifyIdTokenClaims, requireEmailVerificatio
       warnings: req.verificationWarnings || []
     });
   } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ error: 'Failed to fetch orders' });
+    console.error('Error fetching orders from DynamoDB:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch orders',
+      details: error.message,
+      storage: 'dynamodb'
+    });
   }
 });
 
