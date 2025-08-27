@@ -3,7 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { apiConfig } from '../auth0-config';
 
 const PizzaOrder: React.FC = () => {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getIdTokenClaims } = useAuth0();
   const [selectedPizza, setSelectedPizza] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [isOrdering, setIsOrdering] = useState(false);
@@ -34,12 +34,11 @@ const PizzaOrder: React.FC = () => {
 
     setIsOrdering(true);
     try {
-      const token = await getAccessTokenSilently({
-        authorizationParams: {
-          audience: 'https://pizza42-api',
-          scope: 'place:orders',
-        },
-      });
+      // Get ID token claims which contain email verification and custom claims from Post-Login Action
+      const idTokenClaims = await getIdTokenClaims();
+      if (!idTokenClaims || !idTokenClaims.__raw) {
+        throw new Error('Unable to get ID token. Please log in again.');
+      }
 
       const orderData = {
         pizza: selectedPizza,
@@ -52,7 +51,7 @@ const PizzaOrder: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${idTokenClaims.__raw}`,
         },
         body: JSON.stringify(orderData),
       });
