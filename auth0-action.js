@@ -92,8 +92,7 @@ exports.onExecutePostLogin = async (event, api) => {
         api.idToken.setCustomClaim(`${namespace}customer_profile`, {
           total_orders: 0,
           total_spent: 0,
-          customer_since: event.user.created_at,
-          status: 'new_customer'
+          customer_since: event.user.created_at
         });
       }
     } else {
@@ -296,8 +295,7 @@ function generateCustomerProfile(orders, user) {
       return {
         total_orders: 0,
         total_spent: 0,
-        customer_since: user.created_at,
-        status: 'new_customer'
+        customer_since: user.created_at
       };
     }
     
@@ -305,11 +303,7 @@ function generateCustomerProfile(orders, user) {
     const favoriteSize = getMostFrequent(orders.map(order => order.size));
     const favoritePizza = getMostFrequent(orders.map(order => order.pizza));
     
-    // Calculate customer status
-    let status = 'regular';
-    if (orders.length >= 10) status = 'loyal';
-    if (totalSpent >= 200) status = 'vip';
-    if (orders.length >= 20 && totalSpent >= 500) status = 'premium';
+    // No customer status calculation - removed per request
     
     // Calculate average order value and frequency
     const avgOrderValue = totalSpent / orders.length;
@@ -327,7 +321,6 @@ function generateCustomerProfile(orders, user) {
       customer_since: user.created_at,
       first_order: orders[0].date,
       last_order: orders[orders.length - 1].date,
-      status: status,
       order_frequency_per_day: Math.round(orderFrequency * 1000) / 1000,
       profile_generated_at: new Date().toISOString()
     };
@@ -337,7 +330,6 @@ function generateCustomerProfile(orders, user) {
       total_orders: orders.length || 0,
       total_spent: 0,
       customer_since: user.created_at,
-      status: 'error',
       error: 'Profile generation failed'
     };
   }

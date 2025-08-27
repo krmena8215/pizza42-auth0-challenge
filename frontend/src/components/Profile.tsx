@@ -117,11 +117,9 @@ const Profile: React.FC = () => {
       <div style={{ 
         marginTop: '20px', 
         padding: '15px', 
-        backgroundColor: verificationStatus.includes('Verified & Ready') ? '#d4edda' : 
-                         verificationStatus.includes('Required') || verificationStatus.includes('Not Verified') ? '#fff3cd' : '#f8d7da',
+        backgroundColor: '#d4edda', // Always green
         borderRadius: '8px',
-        border: '1px solid ' + (verificationStatus.includes('Verified & Ready') ? '#c3e6cb' : 
-                                verificationStatus.includes('Required') || verificationStatus.includes('Not Verified') ? '#ffeaa7' : '#f5c6cb')
+        border: '1px solid #c3e6cb' // Green border
       }}>
         <h4>ID Token Verification Status</h4>
         <p><strong>Status:</strong> {verificationStatus}</p>
@@ -148,7 +146,6 @@ const Profile: React.FC = () => {
             {idTokenVerification.customerProfile && (
               <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                 <h5>Customer Profile</h5>
-                <p><strong>Status:</strong> {idTokenVerification.customerProfile.status}</p>
                 <p><strong>Total Orders:</strong> {idTokenVerification.customerProfile.total_orders}</p>
                 <p><strong>Total Spent:</strong> ${idTokenVerification.customerProfile.total_spent}</p>
                 {idTokenVerification.customerProfile.favorite_pizza && (
