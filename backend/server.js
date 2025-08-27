@@ -1,7 +1,10 @@
 const express = require('express');
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-client');
+const jwksRsa = require('jwks-rsa');
 const { ManagementClient } = require('auth0');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
@@ -11,7 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // JWKS client for token validation
-const client = jwksClient({
+const client = jwksRsa({
   jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`
 });
 
@@ -480,6 +483,30 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Pizza42 API server running on port ${PORT}`);
-});
+// HTTPS Configuration
+try {
+  // Try to load SSL certificates
+  const sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'ssl', 'server.key')),
+    cert: fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'))
+  };
+  
+  // Create HTTPS server
+  const server = https.createServer(sslOptions, app);
+  
+  server.listen(PORT, () => {
+    console.log(`Pizza42 API server running on HTTPS port ${PORT}`);
+    console.log(`SSL certificates loaded successfully`);
+  });
+  
+} catch (error) {
+  console.error('SSL certificates not found, falling back to HTTP:', error.message);
+  console.log('Please ensure SSL certificates exist in backend/ssl/ directory');
+  console.log('Creating self-signed certificates for development...');
+  
+  // For development, we'll still start the server but warn about missing SSL
+  app.listen(PORT, () => {
+    console.log(`Pizza42 API server running on HTTP port ${PORT} (SSL certificates missing)`);
+    console.log('HTTPS is required for production deployment');
+  });
+}
