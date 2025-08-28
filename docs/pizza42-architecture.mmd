@@ -1,0 +1,44 @@
+graph TB
+    User[Customer Browser] -->|HTTPS| Frontend[React SPA<br/>Port 3000<br/>Auth0 SDK + HTTPS]
+    
+    Frontend -->|Auth Flow| Auth0[Auth0 Platform<br/>- Email/Password Auth<br/>- Google Social Login<br/>- Email Verification<br/>- Post-Login Actions<br/>- Custom Claims]
+    
+    Auth0 -->|ID Token + Claims| Frontend
+    Frontend -->|ID Token| Backend[Node.js API<br/>Port 3001<br/>Express + HTTPS]
+    
+    Backend -->|JWKS Validation| Auth0
+    Backend -->|Verify Claims| EmailMW[Email Verification<br/>Middleware]
+    
+    Backend -->|IAM Role| DynamoDB[(DynamoDB<br/>Pizza42-Orders Table<br/>PK: user_id<br/>SK: order_id)]
+    
+    Backend -->|Customer Analytics| Analytics[Profile Generation<br/>- Total Orders<br/>- Favorite Pizza<br/>- Spending Analytics<br/>- Order Frequency]
+    
+    subgraph "AWS Cloud"
+        EC2[EC2 Instance<br/>t3.medium<br/>- PM2 Process Manager<br/>- SSL Certificates<br/>- IAM Role]
+        IAM[IAM Role<br/>EC2-DynamoDB-Access<br/>DynamoDB Full Access]
+        DynamoDB
+        EC2 -.->|Assumes| IAM
+        IAM -.->|Grants Access| DynamoDB
+    end
+    
+    Backend -.->|Runs on| EC2
+    Frontend -.->|Runs on| EC2
+    
+    subgraph "Security Features"
+        HTTPS[HTTPS Everywhere]
+        JWT[JWT RS256 Validation]
+        EmailVerif[Email Verification]
+        Scopes[Flexible Scope Validation]
+    end
+    
+    classDef authService fill:#ff6b6b,stroke:#333,stroke-width:2px,color:#fff
+    classDef database fill:#4ecdc4,stroke:#333,stroke-width:2px,color:#fff
+    classDef frontend fill:#45b7d1,stroke:#333,stroke-width:2px,color:#fff
+    classDef backend fill:#f9ca24,stroke:#333,stroke-width:2px,color:#000
+    classDef aws fill:#ff9f43,stroke:#333,stroke-width:2px,color:#fff
+    
+    class Auth0 authService
+    class DynamoDB database
+    class Frontend frontend
+    class Backend backend
+    class EC2,IAM aws
