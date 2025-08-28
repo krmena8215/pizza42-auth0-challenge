@@ -34,3 +34,4 @@ coverage/
 # AWS deployment files
 *.pem
 deploy/
+*.tar.gz
